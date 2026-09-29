@@ -1,0 +1,12 @@
+{
+  "name": "warsaw-moving-openfreemap",
+  "version": "1.10.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node start.mjs"
+  }
+}
