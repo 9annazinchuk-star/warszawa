@@ -1,0 +1,1 @@
+Vezemo v12 — mobile language route fix. React router now treats /pl/, /ru/, /en/ as homepage routes instead of redirecting them to /. Existing APIs, calculator, pricing, Mapbox and admin logic unchanged.
