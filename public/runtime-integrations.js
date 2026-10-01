@@ -1,75 +1,102 @@
 (function(){
-  const C='vezemo_cookie_consent', U='vezemo_utm_data';
-  const S=window.__vezemoMetaState||(window.__vezemoMetaState={runtime:null,pixelLoaded:false,pixelLoading:null,pageView:false,form:false,quote:false,leadId:null,initializedPixelId:null});
-  const consent=()=>{try{return JSON.parse(localStorage.getItem(C)||'null')}catch{return null}};
-  const cookie=n=>{const m=document.cookie.match(new RegExp('(?:^|; )'+n.replace(/[$()*+.?[\\\]^{|}]/g,'\\$&')+'=([^;]*)'));return m?decodeURIComponent(m[1]):''};
+  if (window.__vezemoRuntimeIntegrationsLoaded) return;
+  window.__vezemoRuntimeIntegrationsLoaded = true;
+
+  const U='vezemo_utm_data';
+  const S=window.__vezemoMetaState||(window.__vezemoMetaState={
+    form:false,
+    quote:false,
+    leadId:null
+  });
+
+  const cookie=n=>{
+    const m=document.cookie.match(new RegExp('(?:^|; )'+n.replace(/[$()*+.?[\\\]^{|}]/g,'\\$&')+'=([^;]*)'));
+    return m?decodeURIComponent(m[1]):'';
+  };
   const setCookie=(n,v,d=90)=>document.cookie=`${n}=${encodeURIComponent(v)}; path=/; SameSite=Lax; max-age=${d*86400}${location.protocol==='https:'?'; Secure':''}`;
   const utm=()=>{try{return JSON.parse(localStorage.getItem(U)||'{}')}catch{return{}}};
-  const saveUtm=()=>{const q=new URL(location.href).searchParams,d=utm();['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'].forEach(k=>{const v=q.get(k);if(v)d[k]=v});if(d.fbclid&&!cookie('_fbc'))setCookie('_fbc',`fb.1.${Date.now()}.${d.fbclid}`);localStorage.setItem(U,JSON.stringify(d))};
-  const runtime=async()=>{if(S.runtime)return S.runtime;try{const r=await fetch('/api/runtime',{cache:'no-store'});if(r.ok)S.runtime=await r.json()}catch{}return S.runtime||{metaPixelId:'',trackingEnabled:false}};
 
-  function ensureFbq(){
-    if(window.fbq && typeof window.fbq==='function') return window.fbq;
-    const n=window.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!window._fbq) window._fbq=n;
-    n.push=n;
-    n.loaded=true;
-    n.version='2.0';
-    n.queue=[];
-    return n;
-  }
-
-  function ensureMetaScript(){
-    if(window.__vezemoFbeventsPromise) return window.__vezemoFbeventsPromise;
-    window.__vezemoFbeventsPromise=new Promise((resolve,reject)=>{
-      if(window.fbq?.callMethod){resolve();return;}
-      let s=document.querySelector('script[src*="connect.facebook.net"][src*="fbevents.js"]');
-      if(s){
-        if(window.fbq?.callMethod){resolve();return;}
-        s.addEventListener('load',()=>resolve(),{once:true});
-        s.addEventListener('error',reject,{once:true});
-        setTimeout(()=>resolve(),2500);
-        return;
-      }
-      s=document.createElement('script');
-      s.async=true;
-      s.src='https://connect.facebook.net/en_US/fbevents.js';
-      s.dataset.vezemoMeta='1';
-      s.onload=()=>resolve();
-      s.onerror=reject;
-      const first=document.getElementsByTagName('script')[0];
-      if(first?.parentNode) first.parentNode.insertBefore(s,first); else document.head.appendChild(s);
+  const saveUtm=()=>{
+    const q=new URL(location.href).searchParams,d=utm();
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'].forEach(k=>{
+      const v=q.get(k); if(v) d[k]=v;
     });
-    return window.__vezemoFbeventsPromise;
-  }
-
-  const loadPixel=async()=>{
-    const c=consent(),r=await runtime();
-    const pixelId=String(r.metaPixelId||'').trim();
-    if(!c?.marketing||!/^\d{5,40}$/.test(pixelId)||S.pixelLoaded) return;
-    if(S.pixelLoading) return S.pixelLoading;
-    S.pixelLoading=(async()=>{
-      const fbq=ensureFbq();
-      await ensureMetaScript();
-      if(S.initializedPixelId!==pixelId){
-        fbq('consent','grant');
-        fbq('init',pixelId);
-        S.initializedPixelId=pixelId;
-      }
-      S.pixelLoaded=true;
-      if(!S.pageView){fbq('track','PageView');S.pageView=true;}
-      window.__vezemoMetaStatus={ok:true,pixelId,pageView:S.pageView,scriptCount:document.querySelectorAll('script[src*="fbevents.js"]').length};
-    })().catch(err=>{window.__vezemoMetaStatus={ok:false,error:String(err)};console.error('[Vezemo Meta Pixel]',err)}).finally(()=>{S.pixelLoading=null});
-    return S.pixelLoading;
+    if(d.fbclid&&!cookie('_fbc')) setCookie('_fbc',`fb.1.${Date.now()}.${d.fbclid}`);
+    localStorage.setItem(U,JSON.stringify(d));
   };
 
-  const custom=(n,p)=>{if(S.pixelLoaded&&typeof window.fbq==='function')window.fbq('trackCustom',n,p||{})};
-  const lead=(id)=>{if(S.pixelLoaded&&typeof window.fbq==='function')window.fbq('track','Lead',{},id?{eventID:id}:{})};
-  const banner=()=>{if(consent()){loadPixel();return}const l=location.pathname.startsWith('/pl')?'pl':location.pathname.startsWith('/ru')?'ru':location.pathname.startsWith('/en')?'en':'uk';const tx={uk:['Налаштування сайту','Ми використовуємо необхідні технології для стабільної роботи сайту. За вашою згодою додаткові дані допомагають нам покращувати сервіс і оцінювати ефективність наших оголошень.','Лише необхідні','Дозволити'],pl:['Ustawienia witryny','Używamy niezbędnych technologii do stabilnego działania witryny. Za Twoją zgodą dodatkowe dane pomagają nam ulepszać usługę i mierzyć skuteczność reklam.','Tylko niezbędne','Zezwól'],ru:['Настройки сайта','Мы используем необходимые технологии для стабильной работы сайта. С вашего согласия дополнительные данные помогают нам улучшать сервис и оценивать эффективность рекламы.','Только необходимые','Разрешить'],en:['Site settings','We use essential technologies to keep the site working reliably. With your consent, additional data helps us improve the service and measure advertising effectiveness.','Essential only','Allow']}[l];const b=document.createElement('div');b.id='vezemo-consent';b.innerHTML='<div><strong>'+tx[0]+'</strong><span>'+tx[1]+'</span><section><button data-c="0">'+tx[2]+'</button><button data-c="1">'+tx[3]+'</button></section></div>';const st=document.createElement('style');st.textContent='#vezemo-consent{position:fixed;z-index:9999;left:16px;right:16px;bottom:16px;background:rgba(15,23,42,.96);color:white;border-radius:18px;box-shadow:0 20px 60px #0003}#vezemo-consent>div{max-width:1100px;margin:auto;padding:15px 18px;display:flex;gap:15px;align-items:center}#vezemo-consent strong{font-size:16px}#vezemo-consent span{font-size:13px;flex:1;opacity:.85}#vezemo-consent section{display:flex;gap:8px}#vezemo-consent button{border:0;border-radius:999px;padding:10px 14px;font-weight:600}#vezemo-consent button[data-c="1"]{background:#2563eb;color:white}@media(max-width:700px){#vezemo-consent>div{flex-direction:column;align-items:stretch}#vezemo-consent section button{flex:1}}';document.head.appendChild(st);document.body.appendChild(b);b.onclick=e=>{const x=e.target.closest('button[data-c]');if(!x)return;localStorage.setItem(C,JSON.stringify({essential:true,marketing:x.dataset.c==='1',updatedAt:new Date().toISOString()}));b.remove();loadPixel()}};
+  const metaReady=()=>typeof window.fbq==='function';
+
+  const custom=(name,params)=>{
+    if(metaReady()) window.fbq('trackCustom',name,params||{});
+  };
+
+  const lead=(eventId)=>{
+    if(metaReady()) window.fbq('track','Lead',{},eventId?{eventID:eventId}:{});
+  };
+
   saveUtm();
-  const original=window.fetch.bind(window);window.fetch=async function(input,init){const url=typeof input==='string'?input:(input&&input.url)||'';let next=init;if(url.includes('/api/orders')&&init?.body instanceof FormData){const f=new FormData();init.body.forEach((v,k)=>f.append(k,v));Object.entries(utm()).forEach(([k,v])=>{if(v&&!f.has(k))f.append(k,v)});const fbp=cookie('_fbp'),fbc=cookie('_fbc');if(fbp)f.append('_fbp',fbp);if(fbc)f.append('_fbc',fbc);S.leadId=`lead_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;f.append('metaEventId',S.leadId);next={...init,body:f}}const r=await original(input,next);if(url.includes('/api/quote')&&r.ok&&!S.quote){S.quote=true;custom('QuoteCalculated')}if(url.includes('/api/orders')&&r.ok)lead(S.leadId);return r};
-  document.addEventListener('DOMContentLoaded',()=>{document.addEventListener('focusin',e=>{if(!S.form&&e.target?.matches?.('input,textarea,select')){S.form=true;custom('FormStart')}},true);document.addEventListener('click',e=>{const a=e.target.closest?.('a');if(!a)return;const h=a.getAttribute('href')||'';if(h.startsWith('tel:'))custom('PhoneClick');if(/wa\.me|whatsapp|viber|telegram/i.test(h))custom('ContactClick')},true);banner();loadPixel()});
+
+  const originalFetch=window.fetch.bind(window);
+  window.fetch=async function(input,init){
+    const url=typeof input==='string'?input:(input&&input.url)||'';
+    let next=init;
+
+    if(url.includes('/api/orders')&&init?.body instanceof FormData){
+      const f=new FormData();
+      init.body.forEach((v,k)=>f.append(k,v));
+      Object.entries(utm()).forEach(([k,v])=>{if(v&&!f.has(k))f.append(k,v)});
+      const fbp=cookie('_fbp'),fbc=cookie('_fbc');
+      if(fbp)f.append('_fbp',fbp);
+      if(fbc)f.append('_fbc',fbc);
+      S.leadId=`lead_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
+      f.append('metaEventId',S.leadId);
+      next={...init,body:f};
+    }
+
+    const response=await originalFetch(input,next);
+
+    if(url.includes('/api/quote')&&response.ok&&!S.quote){
+      S.quote=true;
+      custom('QuoteCalculated');
+    }
+
+    if(url.includes('/api/orders')&&response.ok){
+      lead(S.leadId);
+    }
+
+    return response;
+  };
+
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.addEventListener('focusin',e=>{
+      if(!S.form&&e.target?.matches?.('input,textarea,select')){
+        S.form=true;
+        custom('FormStart');
+      }
+    },true);
+
+    document.addEventListener('click',e=>{
+      const a=e.target.closest?.('a');
+      if(!a)return;
+      const h=a.getAttribute('href')||'';
+      if(h.startsWith('tel:')) custom('PhoneClick');
+      if(/wa\.me|whatsapp|viber|telegram/i.test(h)) custom('ContactClick');
+    },true);
+
+    // Diagnostic object for quick browser checks.
+    setTimeout(()=>{
+      window.__vezemoMetaStatus={
+        ok: typeof window.fbq==='function',
+        pixelId:'2201396533755976',
+        scriptCount:document.querySelectorAll('script[src*="fbevents.js"]').length,
+        source:'single-head-snippet'
+      };
+      console.info('[Vezemo Meta Pixel]',window.__vezemoMetaStatus);
+    },1200);
+  });
 })();
+
 
 // Submission UX guard: surface validation and server errors next to the submit button.
 (function () {
