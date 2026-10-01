@@ -1,0 +1,19 @@
+Meta Pixel fix
+- Removed conflicting/double Meta Pixel initialization.
+- fbevents.js is loaded at most once.
+- Existing Meta script is reused instead of inserting a second copy.
+- Pixel is initialized only once per Pixel ID.
+- PageView fires once after marketing consent.
+- Lead event remains attached to successful /api/orders responses.
+- Cookie consent behavior is unchanged.
+
+GitHub replacement required:
+public/runtime-integrations.js
+
+After deployment:
+1. In Admin > Advertising enter only the numeric Pixel ID.
+2. Enable Meta Pixel and Save.
+3. Clear site data / use Incognito.
+4. Open site and press Allow on cookie banner.
+5. In Console run: window.__vezemoMetaStatus
+Expected scriptCount: 1, ok: true.

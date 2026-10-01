@@ -65525,14 +65525,11 @@ app.patch("/api/admin/advertising", async (req, res) => {
     metaTestEventCode: external_exports.string().max(120).optional()
   }).safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Перевірте налаштування реклами." });
-  const cleanPixelId = parsed.data.metaPixelId.trim();
-  if (cleanPixelId && !/^[0-9]{5,30}$/.test(cleanPixelId)) return res.status(400).json({ error: "У поле Meta Pixel ID вставте тільки числовий ID, без <script> або повного коду Pixel." });
-  if (parsed.data.metaEnabled && !cleanPixelId) return res.status(400).json({ error: "Щоб увімкнути Meta Pixel, вкажіть числовий Pixel ID." });
   const updated = await store.update((db) => {
     const prev = db.advertising || {};
     db.advertising = {
       metaEnabled: parsed.data.metaEnabled,
-      metaPixelId: cleanPixelId,
+      metaPixelId: parsed.data.metaPixelId.trim(),
       metaAccessToken: parsed.data.metaAccessToken?.trim() || prev.metaAccessToken || "",
       metaTestEventCode: parsed.data.metaTestEventCode?.trim() || ""
     };
@@ -65544,8 +65541,7 @@ app.post("/api/admin/advertising/test", async (_req, res) => {
   const meta = getMetaConfig();
   if (!meta.enabled) return res.status(400).json({ error: "Спочатку увімкніть Meta Pixel." });
   if (!meta.pixelId) return res.status(400).json({ error: "Вкажіть Pixel ID." });
-  if (!/^[0-9]{5,30}$/.test(meta.pixelId)) return res.status(400).json({ error: "Pixel ID має містити тільки цифри." });
-  if (!meta.accessToken) return res.json({ ok:true, browserPixelConfigured:true, capiConfigured:false, message:"Meta Pixel ID збережено. Browser Pixel працює після маркетингової згоди. Conversions API не налаштовано — Access Token можна додати пізніше." });
+  if (!meta.accessToken) return res.status(400).json({ error: "Вкажіть Conversions API Access Token." });
   try {
     const payload = { data: [{ event_name: "PageView", event_time: Math.floor(Date.now()/1000), action_source: "website", event_source_url: publicBaseUrl, event_id: `admin-test-${Date.now()}`, user_data: {} }] };
     if (meta.testEventCode) payload.test_event_code = meta.testEventCode;
