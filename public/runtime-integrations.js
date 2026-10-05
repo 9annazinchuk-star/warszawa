@@ -25,15 +25,6 @@
     localStorage.setItem(U,JSON.stringify(d));
   };
 
-  const metaReady=()=>typeof window.fbq==='function';
-
-  const custom=(name,params)=>{
-    if(metaReady()) window.fbq('trackCustom',name,params||{});
-  };
-
-  const lead=(eventId)=>{
-    if(metaReady()) window.fbq('track','Lead',{},eventId?{eventID:eventId}:{});
-  };
 
   saveUtm();
 
@@ -49,41 +40,15 @@
       const fbp=cookie('_fbp'),fbc=cookie('_fbc');
       if(fbp)f.append('_fbp',fbp);
       if(fbc)f.append('_fbc',fbc);
-      S.leadId=`lead_${Date.now()}_${Math.random().toString(36).slice(2,9)}`;
-      f.append('metaEventId',S.leadId);
       next={...init,body:f};
     }
 
     const response=await originalFetch(input,next);
 
-    if(url.includes('/api/quote')&&response.ok&&!S.quote){
-      S.quote=true;
-      custom('QuoteCalculated');
-    }
-
-    if(url.includes('/api/orders')&&response.ok){
-      lead(S.leadId);
-    }
-
     return response;
   };
 
   document.addEventListener('DOMContentLoaded',()=>{
-    document.addEventListener('focusin',e=>{
-      if(!S.form&&e.target?.matches?.('input,textarea,select')){
-        S.form=true;
-        custom('FormStart');
-      }
-    },true);
-
-    document.addEventListener('click',e=>{
-      const a=e.target.closest?.('a');
-      if(!a)return;
-      const h=a.getAttribute('href')||'';
-      if(h.startsWith('tel:')) custom('PhoneClick');
-      if(/wa\.me|whatsapp|viber|telegram/i.test(h)) custom('ContactClick');
-    },true);
-
     // Diagnostic object for quick browser checks.
     setTimeout(()=>{
       window.__vezemoMetaStatus={

@@ -65083,8 +65083,6 @@ var port = Number(process.env.PORT || 1e4);
 var googleMapsApiKey = "openstreetmap-no-key";
 var publicBaseUrl = String(process.env.PUBLIC_BASE_URL || "https://vezemo.pl").trim().replace(/\/$/, "") || "https://vezemo.pl";
 var metaPixelId = "2201396533755976";
-var metaAccessToken = String(process.env.META_ACCESS_TOKEN || "").trim();
-var metaTestEventCode = String(process.env.META_TEST_EVENT_CODE || "").trim();
 await mkdir2(uploadDir, { recursive: true });
 var store = new JsonStore(dbPath, defaultDbPath);
 await store.init();
@@ -65093,7 +65091,7 @@ var analytics = new AnalyticsBuffer(store);
 analytics.start();
 var app = (0, import_express.default)();
 app.set("trust proxy", 1);
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false, referrerPolicy: { policy: "strict-origin-when-cross-origin" } }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use((0, import_compression.default)());
 app.use((0, import_cookie_parser.default)());
 app.use(import_express.default.json({ limit: "1mb" }));
@@ -65154,49 +65152,7 @@ var safePublicConfig = () => {
     mapsConfigured: Boolean(googleMapsApiKey)
   };
 };
-var getMetaConfig = () => {
-  const pixelId = metaPixelId;
-  const accessToken = String(metaAccessToken || "").trim();
-  const testEventCode = String(metaTestEventCode || "").trim();
-  const enabled = true;
-  return { enabled, pixelId, accessToken, testEventCode };
-};
-var safeRuntimeConfig = () => {
-  const meta = getMetaConfig();
-  return { publicBaseUrl, metaPixelId: meta.pixelId, trackingEnabled: true };
-};
-var normalizeMetaValue = (value) => String(value || "").trim().toLowerCase();
-var normalizeMetaPhone = (value) => String(value || "").replace(/\D/g, "");
-var sha256Meta = (value) => normalizeMetaValue(value) ? createHash2("sha256").update(normalizeMetaValue(value)).digest("hex") : void 0;
-var sha256MetaPhone = (value) => normalizeMetaPhone(value) ? createHash2("sha256").update(normalizeMetaPhone(value)).digest("hex") : void 0;
-async function sendMetaLeadEvent(order, raw, req) {
-  const meta = getMetaConfig();
-  if (!meta.enabled || !meta.pixelId || !meta.accessToken) return;
-  const userData = {
-    client_ip_address: req.ip,
-    client_user_agent: req.get("user-agent") || void 0,
-    fbp: raw?._fbp || void 0,
-    fbc: raw?._fbc || void 0,
-    external_id: raw?.visitorId ? sha256Meta(raw.visitorId) : void 0,
-    ph: sha256MetaPhone(order.phone),
-    fn: sha256Meta(order.name?.split(/\s+/)[0])
-  };
-  Object.keys(userData).forEach((key) => userData[key] === void 0 && delete userData[key]);
-  const payload = { data: [{
-    event_name: "Lead",
-    event_time: Math.floor(Date.now() / 1e3),
-    action_source: "website",
-    event_source_url: publicBaseUrl,
-    event_id: raw?.metaEventId || `${order.id}-${Date.now()}`,
-    user_data: userData,
-    custom_data: { currency: order.quote?.currency || "PLN", value: order.quote?.breakdown?.total || void 0, content_name: "Moving service quote request", city: "Warszawa" }
-  }] };
-  if (meta.testEventCode) payload.test_event_code = meta.testEventCode;
-  const response = await fetch(`https://graph.facebook.com/v26.0/${encodeURIComponent(meta.pixelId)}/events?access_token=${encodeURIComponent(meta.accessToken)}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8e3)
-  });
-  if (!response.ok) throw new Error(`Meta CAPI ${response.status}: ${await response.text().catch(() => "")}`);
-}
+var safeRuntimeConfig = () => ({ publicBaseUrl, metaPixelId, trackingEnabled: true });
 app.get("/api/health", (_req, res) => res.json({ ok: true, storage: existsSync2(dbPath), time: (/* @__PURE__ */ new Date()).toISOString() }));
 app.get("/api/config", (_req, res) => res.json(safePublicConfig()));
 app.get("/api/runtime", (_req, res) => res.json(safeRuntimeConfig()));
@@ -65400,7 +65356,6 @@ app.post("/api/orders", orderLimiter, upload.array("photos", 5), async (req, res
     const quote = calculateQuote({ ...parsed.data, ...verifiedRoute }, db.pricing, db.cargoOptions);
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const tracking = {
-      eventId: raw?.metaEventId || void 0,
       fbclid: raw?.fbclid || void 0,
       fbp: raw?._fbp || void 0,
       fbc: raw?._fbc || void 0,
@@ -65426,7 +65381,6 @@ app.post("/api/orders", orderLimiter, upload.array("photos", 5), async (req, res
     });
     analytics.add({ type: "order_created", visitorId: String(req.body.visitorId || "") || void 0 });
     await analytics.flush();
-    sendMetaLeadEvent(order, raw, req).catch((metaError) => console.error("Meta lead event failed", metaError instanceof Error ? metaError.message : metaError));
     res.status(201).json({ orderId: order.id });
   } catch (error62) {
     await cleanup();
@@ -65710,21 +65664,6 @@ app.post("/api/admin/change-password", async (req, res) => {
   res.json({ ok: true });
 });
 // --- Vezemo SEO multilingual pages (isolated; does not modify calculator/API logic) ---
-const metaPixelHead = `<!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '${metaPixelId}');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1" /></noscript>
-<!-- End Meta Pixel Code -->`;
 const seoLangs = ["uk", "pl", "ru", "en"];
 const seoRoutes = {
   uk: { home:"/", services:"/poslugy", area:"/warszawa-ta-okolytsi", poland:"/pereizdy-po-polshchi", about:"/pro-nas", prices:"/ciny", how:"/yak-ce-pracyuye", faq:"/faq", contact:"/kontakty" },
@@ -65741,7 +65680,7 @@ en:{menu:["Home","Services","Warsaw and surroundings","Moving across Poland","Ab
 const warsawDistricts=["Śródmieście","Mokotów","Wola","Ochota","Ursynów","Wilanów","Bemowo","Bielany","Żoliborz","Białołęka","Praga-Północ","Praga-Południe","Targówek","Włochy","Ursus","Wawer","Wesoła","Rembertów"];
 const nearbyPlaces=["Marki","Ząbki","Zielonka","Kobyłka","Wołomin","Radzymin","Legionowo","Jabłonna","Łomianki","Piaseczno","Konstancin-Jeziorna","Pruszków","Piastów","Ożarów Mazowiecki","Raszyn","Michałowice","Nadarzyn","Lesznowola","Grodzisk Mazowiecki","Brwinów","Błonie","Sulejówek","Halinów","Mińsk Mazowiecki"];
 const faqItems={uk:[["Скільки коштує квартирний переїзд у Варшаві?","Вартість залежить від маршруту, відстані, тривалості та вибраних послуг. Актуальний орієнтовний розрахунок доступний у калькуляторі Vezemo."],["Чи можна замовити вантажників?","Так. У формі можна вибрати варіант із двома вантажниками."],["Чи перевозите меблі та побутову техніку?","Так, ці категорії можна вибрати у формі заявки."],["Чи можна перевезти лише одну велику річ?","Так, вкажіть потрібний вантаж та адреси у формі, щоб отримати розрахунок."],["Чи працюєте за межами Варшави?","Так, Vezemo приймає заявки на маршрути у Варшаві та околицях; можливість конкретного маршруту визначається за введеними адресами."],["Чи можна вибрати дату і час?","Так, форма містить поля дати перевезення та бажаного часу."],["Чи можна додати фотографії?","Так, до заявки можна додати фотографії речей." ]],pl:[["Ile kosztuje przeprowadzka w Warszawie?","Cena zależy od trasy, odległości, czasu i wybranych usług. Orientacyjną cenę obliczysz w kalkulatorze Vezemo."],["Czy można zamówić pomoc przy noszeniu?","Tak. Formularz pozwala wybrać opcję z dwoma osobami do pomocy."],["Czy przewozicie meble i AGD?","Tak, te kategorie można wybrać w formularzu."],["Czy działacie poza Warszawą?","Tak, przyjmujemy zgłoszenia na trasy w Warszawie i okolicach."],["Czy mogę wybrać datę i godzinę?","Tak, formularz zawiera pola daty i preferowanej godziny."],["Czy mogę dodać zdjęcia?","Tak, do zgłoszenia można dodać zdjęcia rzeczy."]],ru:[["Сколько стоит переезд в Варшаве?","Цена зависит от маршрута, расстояния, времени и выбранных услуг. Ориентировочную стоимость можно рассчитать в калькуляторе Vezemo."],["Можно заказать грузчиков?","Да. В форме есть вариант с двумя грузчиками."],["Перевозите мебель и бытовую технику?","Да, эти категории доступны в форме заявки."],["Работаете за пределами Варшавы?","Да, принимаются заявки на маршруты по Варшаве и окрестностям."],["Можно выбрать дату и время?","Да, в форме есть дата и желаемое время."],["Можно добавить фотографии?","Да, к заявке можно приложить фотографии вещей."]],en:[["How much does a move in Warsaw cost?","The price depends on route, distance, duration and selected services. Use the Vezemo calculator for an estimate."],["Can I book movers?","Yes. The form includes an option with two movers."],["Do you transport furniture and appliances?","Yes, these categories are available in the request form."],["Do you work outside Warsaw?","Yes, requests can include routes in Warsaw and surrounding areas."],["Can I choose a date and time?","Yes, the form includes moving date and preferred time fields."],["Can I add photos?","Yes, photos of the items can be attached to the request."]]};
-function seoPageHtml(lang,key){const c=seoCopy[lang], r=seoRoutes[lang], cfg=safePublicConfig(), phone=cfg?.siteSettings?.phone||"+48500600700";const titleMap={services:c.services.h,area:c.area.h,poland:c.poland.h,about:c.about.h,prices:c.prices.h,how:c.how.h,faq:c.faq.h,contact:c.contact.h};const title=titleMap[key]+" | Vezemo";const desc=key==="services"?c.services.intro:key==="area"?c.area.p:key==="poland"?c.poland.p:key==="about"?c.about.p:key==="prices"?c.prices.p:key==="contact"?c.contact.p:titleMap[key];const keys=["home","services","area","poland","about","prices","how","faq","contact"];let body="";if(key==="services")body=`<p>${c.services.intro}</p><div class="vz-seo-grid">${c.services.cards.map(x=>`<section class="vz-card"><h2>${x[0]}</h2><p>${x[1]}</p></section>`).join("")}</div>`;if(key==="area")body=`<p>${c.area.p}</p><h2>${c.area.d}</h2><div class="vz-tags">${warsawDistricts.map(x=>`<span class="vz-tag">${x}</span>`).join("")}</div><h2>${c.area.n}</h2><div class="vz-tags">${nearbyPlaces.map(x=>`<span class="vz-tag">${x}</span>`).join("")}</div>`;if(key==="poland")body=`<p>${c.poland.p}</p><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="about")body=`<p>${c.about.p}</p>`;if(key==="prices")body=`<p>${c.prices.p}</p><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="how")body=`<div class="vz-seo-grid">${c.how.steps.map((x,i)=>`<section class="vz-card"><h2>${i+1}</h2><p>${x}</p></section>`).join("")}</div><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="faq")body=`<div class="vz-faq">${faqItems[lang].map(x=>`<details><summary>${x[0]}</summary><p>${x[1]}</p></details>`).join("")}</div>`;if(key==="contact")body=`<p>${c.contact.p}</p><div class="vz-card"><h2>${phone}</h2><p>WhatsApp · Viber · Telegram · ${lang==='pl'?'Telefon':lang==='en'?'Call':lang==='ru'?'Звонок':'Дзвінок'}</p><a class="vz-cta" href="tel:${phone.replace(/\s/g,'')}">${phone}</a></div><a class="vz-cta" href="${r.home}">${c.cta}</a>`;const alt=seoLangs.map(l=>`<link rel="alternate" hreflang="${l}" href="${publicBaseUrl}${seoRoutes[l][key]}">`).join("")+`<link rel="alternate" hreflang="x-default" href="${publicBaseUrl}${seoRoutes.uk[key]}">`;const nav=c.menu.map((x,i)=>`<a href="${r[keys[i]]}">${x}</a>`).join("");return `<!doctype html><html lang="${lang}"><head>${metaPixelHead}<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="index,follow,max-image-preview:large"><title>${title}</title><meta name="description" content="${desc.replace(/"/g,'&quot;')}"><link rel="canonical" href="${publicBaseUrl}${r[key]}">${alt}<meta property="og:type" content="website"><meta property="og:site_name" content="Vezemo"><meta property="og:title" content="${title}"><meta property="og:description" content="${desc.replace(/"/g,'&quot;')}"><meta property="og:url" content="${publicBaseUrl}${r[key]}"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/seo-nav-v11.css"><script type="application/ld+json">${JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:c.menu[0],item:publicBaseUrl+r.home},{"@type":"ListItem",position:2,name:titleMap[key],item:publicBaseUrl+r[key]}]})}</script></head><body><header class="vz-top"><a href="${r.home}"><img src="/vezemo-logo.png" alt="Vezemo"></a><div class="vz-actions"><a class="vz-home" href="${r.home}">${c.menu[0]}</a></div></header><main class="vz-seo"><h1>${titleMap[key]}</h1>${body}</main><script src="/seo-nav-v11.js"></script></body></html>`}
+function seoPageHtml(lang,key){const c=seoCopy[lang], r=seoRoutes[lang], cfg=safePublicConfig(), phone=cfg?.siteSettings?.phone||"+48500600700";const titleMap={services:c.services.h,area:c.area.h,poland:c.poland.h,about:c.about.h,prices:c.prices.h,how:c.how.h,faq:c.faq.h,contact:c.contact.h};const title=titleMap[key]+" | Vezemo";const desc=key==="services"?c.services.intro:key==="area"?c.area.p:key==="poland"?c.poland.p:key==="about"?c.about.p:key==="prices"?c.prices.p:key==="contact"?c.contact.p:titleMap[key];const keys=["home","services","area","poland","about","prices","how","faq","contact"];let body="";if(key==="services")body=`<p>${c.services.intro}</p><div class="vz-seo-grid">${c.services.cards.map(x=>`<section class="vz-card"><h2>${x[0]}</h2><p>${x[1]}</p></section>`).join("")}</div>`;if(key==="area")body=`<p>${c.area.p}</p><h2>${c.area.d}</h2><div class="vz-tags">${warsawDistricts.map(x=>`<span class="vz-tag">${x}</span>`).join("")}</div><h2>${c.area.n}</h2><div class="vz-tags">${nearbyPlaces.map(x=>`<span class="vz-tag">${x}</span>`).join("")}</div>`;if(key==="poland")body=`<p>${c.poland.p}</p><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="about")body=`<p>${c.about.p}</p>`;if(key==="prices")body=`<p>${c.prices.p}</p><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="how")body=`<div class="vz-seo-grid">${c.how.steps.map((x,i)=>`<section class="vz-card"><h2>${i+1}</h2><p>${x}</p></section>`).join("")}</div><a class="vz-cta" href="${r.home}">${c.cta}</a>`;if(key==="faq")body=`<div class="vz-faq">${faqItems[lang].map(x=>`<details><summary>${x[0]}</summary><p>${x[1]}</p></details>`).join("")}</div>`;if(key==="contact")body=`<p>${c.contact.p}</p><div class="vz-card"><h2>${phone}</h2><p>WhatsApp · Viber · Telegram · ${lang==='pl'?'Telefon':lang==='en'?'Call':lang==='ru'?'Звонок':'Дзвінок'}</p><a class="vz-cta" href="tel:${phone.replace(/\s/g,'')}">${phone}</a></div><a class="vz-cta" href="${r.home}">${c.cta}</a>`;const alt=seoLangs.map(l=>`<link rel="alternate" hreflang="${l}" href="${publicBaseUrl}${seoRoutes[l][key]}">`).join("")+`<link rel="alternate" hreflang="x-default" href="${publicBaseUrl}${seoRoutes.uk[key]}">`;const nav=c.menu.map((x,i)=>`<a href="${r[keys[i]]}">${x}</a>`).join("");return `<!doctype html><html lang="${lang}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="index,follow,max-image-preview:large"><title>${title}</title><meta name="description" content="${desc.replace(/"/g,'&quot;')}"><link rel="canonical" href="${publicBaseUrl}${r[key]}">${alt}<meta property="og:type" content="website"><meta property="og:site_name" content="Vezemo"><meta property="og:title" content="${title}"><meta property="og:description" content="${desc.replace(/"/g,'&quot;')}"><meta property="og:url" content="${publicBaseUrl}${r[key]}"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/seo-nav-v11.css"><script type="application/ld+json">${JSON.stringify({"@context":"https://schema.org","@type":"BreadcrumbList",itemListElement:[{"@type":"ListItem",position:1,name:c.menu[0],item:publicBaseUrl+r.home},{"@type":"ListItem",position:2,name:titleMap[key],item:publicBaseUrl+r[key]}]})}</script></head><body><header class="vz-top"><a href="${r.home}"><img src="/vezemo-logo.png" alt="Vezemo"></a><div class="vz-actions"><a class="vz-home" href="${r.home}">${c.menu[0]}</a></div></header><main class="vz-seo"><h1>${titleMap[key]}</h1>${body}</main><script src="/seo-nav-v11.js"></script></body></html>`}
 const seoPathMap=new Map();for(const l of seoLangs)for(const k of ["services","area","poland","about","prices","how","faq","contact"])seoPathMap.set(seoRoutes[l][k],[l,k]);
 app.get(Array.from(seoPathMap.keys()),(req,res)=>{const [l,k]=seoPathMap.get(req.path);res.type("html").send(seoPageHtml(l,k))});
 // Localized home URLs keep the existing SPA/calculator intact; seo-nav.js localizes visible UI and navigation.
