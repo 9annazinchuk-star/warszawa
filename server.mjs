@@ -65091,7 +65091,7 @@ var analytics = new AnalyticsBuffer(store);
 analytics.start();
 var app = (0, import_express.default)();
 app.set("trust proxy", 1);
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false, crossOriginOpenerPolicy: false }));
 app.use((0, import_compression.default)());
 app.use((0, import_cookie_parser.default)());
 app.use(import_express.default.json({ limit: "1mb" }));
