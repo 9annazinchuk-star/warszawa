@@ -64901,12 +64901,6 @@ var JsonStore = class {
     if (!this.data.analytics.firstSeen) this.data.analytics.firstSeen = {};
     if (!this.data.sessions) this.data.sessions = [];
     if (!Number.isFinite(this.data.pricing.hourlyPrice)) this.data.pricing.hourlyPrice = 120;
-    if (!this.data.advertising) this.data.advertising = {
-      metaEnabled: Boolean(process.env.META_PIXEL_ID),
-      metaPixelId: String(process.env.META_PIXEL_ID || "").trim(),
-      metaAccessToken: String(process.env.META_ACCESS_TOKEN || "").trim(),
-      metaTestEventCode: String(process.env.META_TEST_EVENT_CODE || "").trim()
-    };
     this.data.schemaVersion = 2;
     await this.persist();
   }
@@ -65086,9 +65080,9 @@ var defaultDbPath = path2.resolve(process.cwd(), "data/default-db.json");
 var compactClientPath = path2.resolve(process.cwd(), "public");
 var clientPath = existsSync2(compactClientPath) ? compactClientPath : path2.resolve(__dirname, "../client");
 var port = Number(process.env.PORT || 1e4);
-var googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || "";
+var googleMapsApiKey = "openstreetmap-no-key";
 var publicBaseUrl = String(process.env.PUBLIC_BASE_URL || "https://vezemo.pl").trim().replace(/\/$/, "") || "https://vezemo.pl";
-var metaPixelId = String(process.env.META_PIXEL_ID || "").trim();
+var metaPixelId = "2201396533755976";
 var metaAccessToken = String(process.env.META_ACCESS_TOKEN || "").trim();
 var metaTestEventCode = String(process.env.META_TEST_EVENT_CODE || "").trim();
 await mkdir2(uploadDir, { recursive: true });
@@ -65123,7 +65117,7 @@ var quoteInputSchema = external_exports.object({
   cargoOptionIds: external_exports.array(external_exports.string()).max(30),
   driverHelp: external_exports.boolean(),
   twoMovers: external_exports.boolean(),
-  serviceHours: external_exports.number().int().min(0).max(24)
+  serviceHours: external_exports.number().int().min(0).max(3)
 });
 var orderInputSchema = quoteInputSchema.extend({
   operationId: external_exports.string().min(8).max(100),
@@ -65161,19 +65155,20 @@ var safePublicConfig = () => {
   };
 };
 var getMetaConfig = () => {
-  const ads = store.read().advertising || {};
-  const pixelId = String(ads.metaPixelId || metaPixelId || "").trim();
-  const accessToken = String(ads.metaAccessToken || metaAccessToken || "").trim();
-  const testEventCode = String(ads.metaTestEventCode || metaTestEventCode || "").trim();
-  const enabled = ads.metaEnabled === void 0 ? Boolean(pixelId) : Boolean(ads.metaEnabled);
+  const pixelId = metaPixelId;
+  const accessToken = String(metaAccessToken || "").trim();
+  const testEventCode = String(metaTestEventCode || "").trim();
+  const enabled = true;
   return { enabled, pixelId, accessToken, testEventCode };
 };
 var safeRuntimeConfig = () => {
   const meta = getMetaConfig();
-  return { publicBaseUrl, metaPixelId: meta.enabled ? meta.pixelId : "", trackingEnabled: Boolean(meta.enabled && meta.pixelId) };
+  return { publicBaseUrl, metaPixelId: meta.pixelId, trackingEnabled: true };
 };
 var normalizeMetaValue = (value) => String(value || "").trim().toLowerCase();
+var normalizeMetaPhone = (value) => String(value || "").replace(/\D/g, "");
 var sha256Meta = (value) => normalizeMetaValue(value) ? createHash2("sha256").update(normalizeMetaValue(value)).digest("hex") : void 0;
+var sha256MetaPhone = (value) => normalizeMetaPhone(value) ? createHash2("sha256").update(normalizeMetaPhone(value)).digest("hex") : void 0;
 async function sendMetaLeadEvent(order, raw, req) {
   const meta = getMetaConfig();
   if (!meta.enabled || !meta.pixelId || !meta.accessToken) return;
@@ -65183,7 +65178,7 @@ async function sendMetaLeadEvent(order, raw, req) {
     fbp: raw?._fbp || void 0,
     fbc: raw?._fbc || void 0,
     external_id: raw?.visitorId ? sha256Meta(raw.visitorId) : void 0,
-    ph: sha256Meta(order.phone),
+    ph: sha256MetaPhone(order.phone),
     fn: sha256Meta(order.name?.split(/\s+/)[0])
   };
   Object.keys(userData).forEach((key) => userData[key] === void 0 && delete userData[key]);
@@ -65197,7 +65192,7 @@ async function sendMetaLeadEvent(order, raw, req) {
     custom_data: { currency: order.quote?.currency || "PLN", value: order.quote?.breakdown?.total || void 0, content_name: "Moving service quote request", city: "Warszawa" }
   }] };
   if (meta.testEventCode) payload.test_event_code = meta.testEventCode;
-  const response = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(meta.pixelId)}/events?access_token=${encodeURIComponent(meta.accessToken)}`, {
+  const response = await fetch(`https://graph.facebook.com/v26.0/${encodeURIComponent(meta.pixelId)}/events?access_token=${encodeURIComponent(meta.accessToken)}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(8e3)
   });
   if (!response.ok) throw new Error(`Meta CAPI ${response.status}: ${await response.text().catch(() => "")}`);
@@ -65357,13 +65352,18 @@ app.post("/api/quote", quoteLimiter, (req, res) => {
   const parsed = quoteInputSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "\u041F\u0435\u0440\u0435\u0432\u0456\u0440\u0442\u0435 \u0434\u0430\u043D\u0456 \u0434\u043B\u044F \u0440\u043E\u0437\u0440\u0430\u0445\u0443\u043D\u043A\u0443." });
   const db = store.read();
+  const validIds = new Set(db.cargoOptions.filter((item) => item.enabled).map((item) => item.id));
+  if (!parsed.data.cargoOptionIds.length || parsed.data.cargoOptionIds.some((id) => !validIds.has(id))) {
+    return res.status(400).json({ error: "\u041E\u0431\u0435\u0440\u0456\u0442\u044C, \u0449\u043E \u043F\u043E\u0442\u0440\u0456\u0431\u043D\u043E \u043F\u0435\u0440\u0435\u0432\u0435\u0437\u0442\u0438." });
+  }
   res.json(calculateQuote(parsed.data, db.pricing, db.cargoOptions));
 });
 app.post("/api/orders", orderLimiter, upload.array("photos", 5), async (req, res) => {
   const files = req.files || [];
   const cleanup = () => Promise.all(files.map((file2) => rm(file2.path, { force: true })));
   try {
-    const raw = typeof req.body.payload === "string" ? JSON.parse(req.body.payload) : req.body;
+    const payloadData = typeof req.body.payload === "string" ? JSON.parse(req.body.payload) : null;
+    const raw = payloadData ? { ...req.body, ...payloadData } : req.body;
     const parsed = orderInputSchema.safeParse(raw);
     if (!parsed.success || parsed.data.honeypot) {
       await cleanup();
@@ -65510,46 +65510,26 @@ app.patch("/api/admin/orders/:id", async (req, res) => {
   if (!updated) return res.status(404).json({ error: "\u0417\u0430\u044F\u0432\u043A\u0443 \u043D\u0435 \u0437\u043D\u0430\u0439\u0434\u0435\u043D\u043E." });
   res.json(updated);
 });
+app.delete("/api/admin/orders/:id", async (req, res) => {
+  const removed = await store.update((db) => {
+    const index = db.orders.findIndex((item) => item.id === req.params.id);
+    if (index < 0) return null;
+    const [order] = db.orders.splice(index, 1);
+    return order;
+  });
+  if (!removed) return res.status(404).json({ error: "Заявку не знайдено." });
+  if (Array.isArray(removed.photos)) {
+    await Promise.all(removed.photos.map(async (photo) => {
+      const filename = typeof photo?.filename === "string" ? path2.basename(photo.filename) : "";
+      if (!filename) return;
+      try { await rm(path2.join(uploadDir, filename), { force: true }); } catch {}
+    }));
+  }
+  res.json({ ok: true, id: req.params.id });
+});
 app.get("/api/admin/config", (_req, res) => {
   const db = store.read();
-  const ads = db.advertising || {};
-  res.json({ cargoOptions: db.cargoOptions, pricing: db.pricing, siteSettings: db.siteSettings, serviceOptions: db.serviceOptions,
-    advertising: { metaEnabled: Boolean(ads.metaEnabled), metaPixelId: ads.metaPixelId || "", metaTestEventCode: ads.metaTestEventCode || "", hasMetaAccessToken: Boolean(ads.metaAccessToken) }
-  });
-});
-app.patch("/api/admin/advertising", async (req, res) => {
-  const parsed = external_exports.object({
-    metaEnabled: external_exports.boolean(),
-    metaPixelId: external_exports.string().max(40),
-    metaAccessToken: external_exports.string().max(2000).optional(),
-    metaTestEventCode: external_exports.string().max(120).optional()
-  }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Перевірте налаштування реклами." });
-  const updated = await store.update((db) => {
-    const prev = db.advertising || {};
-    db.advertising = {
-      metaEnabled: parsed.data.metaEnabled,
-      metaPixelId: parsed.data.metaPixelId.trim(),
-      metaAccessToken: parsed.data.metaAccessToken?.trim() || prev.metaAccessToken || "",
-      metaTestEventCode: parsed.data.metaTestEventCode?.trim() || ""
-    };
-    return db.advertising;
-  });
-  res.json({ ok: true, metaEnabled: updated.metaEnabled, metaPixelId: updated.metaPixelId, metaTestEventCode: updated.metaTestEventCode, hasMetaAccessToken: Boolean(updated.metaAccessToken) });
-});
-app.post("/api/admin/advertising/test", async (_req, res) => {
-  const meta = getMetaConfig();
-  if (!meta.enabled) return res.status(400).json({ error: "Спочатку увімкніть Meta Pixel." });
-  if (!meta.pixelId) return res.status(400).json({ error: "Вкажіть Pixel ID." });
-  if (!meta.accessToken) return res.status(400).json({ error: "Вкажіть Conversions API Access Token." });
-  try {
-    const payload = { data: [{ event_name: "PageView", event_time: Math.floor(Date.now()/1000), action_source: "website", event_source_url: publicBaseUrl, event_id: `admin-test-${Date.now()}`, user_data: {} }] };
-    if (meta.testEventCode) payload.test_event_code = meta.testEventCode;
-    const response = await fetch(`https://graph.facebook.com/v21.0/${encodeURIComponent(meta.pixelId)}/events?access_token=${encodeURIComponent(meta.accessToken)}`, { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload), signal:AbortSignal.timeout(8000) });
-    const body = await response.text();
-    if (!response.ok) return res.status(400).json({ error: `Meta API ${response.status}: ${body.slice(0,300)}` });
-    res.json({ ok:true, message:"Тестову подію надіслано в Meta." });
-  } catch (error) { res.status(502).json({ error: "Не вдалося зв’язатися з Meta API." }); }
+  res.json({ cargoOptions: db.cargoOptions, pricing: db.pricing, siteSettings: db.siteSettings, serviceOptions: db.serviceOptions });
 });
 app.patch("/api/admin/pricing", async (req, res) => {
   const parsed = external_exports.object({
@@ -65632,7 +65612,7 @@ function buildStatistics(db, from, to) {
     quotes: value.quotes,
     orders: value.orders
   }));
-  const activeOrders = db.orders.filter((order) => !order.archived && inRange(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw" }).format(new Date(order.createdAt))));
+  const activeOrders = db.orders.filter((order) => !order.archived && !order.statsExcluded && inRange(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw" }).format(new Date(order.createdAt))));
   const selectedDays = Object.entries(db.analytics.daily).filter(([date5]) => inRange(date5)).map(([, day]) => day);
   const uniqueVisitors = new Set(selectedDays.flatMap((day) => day.visitorIds)).size;
   const totals = {
@@ -65676,6 +65656,34 @@ app.get("/api/admin/statistics", async (req, res) => {
     from = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw" }).format(date5);
   }
   res.json(buildStatistics(store.read(), from || void 0, to || void 0));
+});
+app.delete("/api/admin/statistics", async (req, res) => {
+  await analytics.flush();
+  const parsed = external_exports.object({
+    from: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+  }).safeParse(req.body);
+  if (!parsed.success || parsed.data.from > parsed.data.to) {
+    return res.status(400).json({ error: "Вкажіть коректний період очищення." });
+  }
+  const { from, to } = parsed.data;
+  const dayKey = (value) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Warsaw" }).format(new Date(value));
+  const inRange = (date) => date >= from && date <= to;
+  const result = await store.update((db) => {
+    for (const date of Object.keys(db.analytics.daily || {})) {
+      if (inRange(date)) delete db.analytics.daily[date];
+    }
+    db.analytics.events = (db.analytics.events || []).filter((event) => !inRange(dayKey(event.createdAt)));
+    for (const [visitorId, date] of Object.entries(db.analytics.firstSeen || {})) {
+      if (inRange(String(date))) delete db.analytics.firstSeen[visitorId];
+    }
+    for (const order of db.orders) {
+      if (inRange(dayKey(order.createdAt))) order.statsExcluded = true;
+    }
+    db.analytics.lastFlushAt = (/* @__PURE__ */ new Date()).toISOString();
+    return buildStatistics(db);
+  });
+  res.json({ ok: true, from, to, statistics: result });
 });
 app.post("/api/admin/statistics/rebuild", async (_req, res) => {
   await analytics.flush();

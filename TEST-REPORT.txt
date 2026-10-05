@@ -1,0 +1,36 @@
+Vezemo final test report — 2026-10-05
+
+PASS
+- server.mjs syntax
+- start.mjs syntax
+- runtime-integrations.js syntax
+- compiled frontend bundle syntax
+- Advertising page removed from admin navigation and render path
+- /api/admin/advertising endpoints removed
+- Meta Pixel loader appears once in index.html
+- Pixel ID is hard-coded: 2201396533755976
+- PageView base event present
+- Lead browser event present
+- Browser metaEventId is preserved by multipart payload merge on server
+- CAPI event_id uses the same metaEventId when META_ACCESS_TOKEN is configured
+- CAPI Graph endpoint updated to v26.0
+- Phone normalization before CAPI hashing fixed
+- serviceHours restricted to 0..3
+- empty and unknown cargo IDs rejected
+- 50 randomized calculator scenarios matched an independent price calculation
+- invalid calculator scenarios returned HTTP 400
+- public /api/config and /api/runtime returned expected structure locally
+
+EXTERNAL CHECK LIMITATION
+- This environment could not establish outbound connections from the local Node process to Photon/OSRM, so live provider reachability could not be verified here. The no-key adapter code and request/response mappings were statically validated.
+- Actual receipt of PageView/Lead inside the owner's Meta Events Manager cannot be proven without access to that Meta account. Code-level Pixel integration is correct and the live site HTML exposes a Facebook tracking resource, but final confirmation should be made in Events Manager > Test events after deployment.
+
+ADMIN CLEANUP TESTS
+- JavaScript syntax: PASS
+- Server syntax: PASS
+- Authenticated DELETE /api/admin/orders/:id: PASS
+- Deleted order disappears from admin orders API: PASS
+- DELETE /api/admin/statistics for selected date range: PASS
+- Orders remain present after statistics cleanup: PASS
+- Existing orders in cleared period are excluded from statistics: PASS
+- Invalid reversed statistics date range returns HTTP 400: PASS

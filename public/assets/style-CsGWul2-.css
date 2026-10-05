@@ -108,3 +108,16 @@ body{background:linear-gradient(180deg,#f8fafc 0,#eef5fb 100%)}
   .hero-copy h1{font-size:43px;max-width:300px}
   .hero-copy p{font-size:16px;max-width:290px}
 }
+
+/* Admin destructive actions */
+.order-card-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.order-delete-button{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(220,38,38,.18);border-radius:10px;background:#fff;color:#b91c1c;font-size:24px;line-height:1;cursor:pointer;transition:.16s ease}
+.order-delete-button:hover{background:#fef2f2;border-color:rgba(220,38,38,.38);transform:translateY(-1px)}
+.order-delete-button:focus-visible{outline:3px solid rgba(220,38,38,.18);outline-offset:2px}
+.danger-button{min-height:44px;padding:0 16px;border:1px solid rgba(220,38,38,.22);border-radius:14px;background:#fff;color:#b91c1c;font:inherit;font-weight:700;cursor:pointer}
+.danger-button:hover:not(:disabled){background:#fef2f2;border-color:rgba(220,38,38,.38)}
+.danger-button:disabled{opacity:.48;cursor:not-allowed}
+.statistics-filters{align-items:center;flex-wrap:wrap}
+.statistics-filters input[type=date]{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:14px;background:#fff;color:inherit;font:inherit}
+.stats-clear-button{margin-left:auto}
+@media(max-width:760px){.statistics-filters{align-items:stretch}.statistics-filters input[type=date],.statistics-filters .stats-clear-button{width:100%;margin-left:0}.order-card-top{align-items:flex-start}.order-card-actions{gap:6px}}

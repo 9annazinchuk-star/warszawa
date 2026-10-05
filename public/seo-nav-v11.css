@@ -18,3 +18,31 @@
 
 /* Mobile language tap reliability */
 .vz-language{z-index:10030}.vz-language-menu{z-index:10031;touch-action:manipulation}.vz-language-menu a{position:relative;z-index:1;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* Header logo fit fix: keep the logo fully inside the rounded white background */
+.topbar{overflow:hidden!important}
+.topbar .brand-logo-link{
+  flex:0 1 auto!important;
+  min-width:0!important;
+  max-width:min(46vw,210px)!important;
+  height:56px!important;
+  overflow:hidden!important;
+}
+.topbar .brand-logo-image{
+  display:block!important;
+  width:auto!important;
+  height:auto!important;
+  max-width:100%!important;
+  max-height:48px!important;
+  object-fit:contain!important;
+  object-position:left center!important;
+}
+@media(max-width:430px){
+  .topbar{padding:8px 10px 8px 12px!important}
+  .topbar .brand-logo-link{max-width:min(44vw,160px)!important;height:48px!important}
+  .topbar .brand-logo-image{max-height:40px!important}
+}
+@media(max-width:370px){
+  .topbar .brand-logo-link{max-width:min(42vw,145px)!important;height:44px!important}
+  .topbar .brand-logo-image{max-height:36px!important}
+}

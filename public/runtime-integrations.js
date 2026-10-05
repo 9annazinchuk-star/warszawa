@@ -90,7 +90,8 @@
         ok: typeof window.fbq==='function',
         pixelId:'2201396533755976',
         scriptCount:document.querySelectorAll('script[src*="fbevents.js"]').length,
-        source:'single-head-snippet'
+        duplicateDetected:document.querySelectorAll('script[src*="fbevents.js"]').length>1,
+        source:'single-early-head-snippet'
       };
       console.info('[Vezemo Meta Pixel]',window.__vezemoMetaStatus);
     },1200);

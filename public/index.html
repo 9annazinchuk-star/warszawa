@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f4f7fb" />
+
+<!-- Meta Pixel Code -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+if (!window.__vezemoMetaPixelInitialized) {
+  window.__vezemoMetaPixelInitialized = true;
+  fbq('init', '2201396533755976');
+  fbq('track', 'PageView');
+}
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=2201396533755976&ev=PageView&noscript=1"
+/></noscript>
+<!-- End Meta Pixel Code -->
+
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
@@ -37,29 +59,13 @@
       "address":{"@type":"PostalAddress","addressLocality":"Warszawa","addressCountry":"PL"}
     }
     </script>
-    <script src="/runtime-integrations.js?v=20261002-immediate-pixel" defer></script>
+    <script src="/runtime-integrations.js?v=20261005-address-fallback-pixel" defer></script>
     <script type="module" crossorigin src="/assets/index-v12-lang-routes.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/style-CsGWul2-.css">
       <link rel="stylesheet" href="/seo-nav-v11.css" />
     <script src="/seo-nav-v11.js" defer></script>
   
-<!-- Meta Pixel Code -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '2201396533755976');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=2201396533755976&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code -->
+
 
 </head>
   <body><div id="root"></div></body>

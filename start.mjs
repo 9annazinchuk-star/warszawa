@@ -2,7 +2,7 @@ const originalFetch = globalThis.fetch.bind(globalThis);
 
 // The bundled application was built against Google endpoints. This adapter keeps
 // its public API unchanged while using free OpenStreetMap services that require
-// no API key: Photon for address search and OSRM for driving routes.
+// no API key: Photon for address search and OSRM for driving routes. No API key is required.
 const places = new Map();
 const MAX_PLACES = 1000;
 
@@ -77,25 +77,32 @@ async function photonAutocomplete(init) {
   const query = clean(body.input);
   if (query.length < 3) return jsonResponse({ suggestions: [] });
 
-  const url = new URL("https://photon.komoot.io/api/");
-  url.searchParams.set("q", query);
-  url.searchParams.set("limit", "10");
-  url.searchParams.set("lat", "52.2297");
-  url.searchParams.set("lon", "21.0122");
-  url.searchParams.set("bbox", "14.07,49.00,24.15,54.84");
+  let predictions = [];
+  try {
+    const url = new URL("https://photon.komoot.io/api/");
+    url.searchParams.set("q", query);
+    url.searchParams.set("limit", "10");
+    url.searchParams.set("lat", "52.2297");
+    url.searchParams.set("lon", "21.0122");
+    url.searchParams.set("bbox", "14.07,49.00,24.15,54.84");
 
-  const response = await originalFetch(url, {
-    headers: { Accept: "application/json", "User-Agent": "PereizdyWarszawa/1.0" },
-    signal: init?.signal,
-  });
-  if (!response.ok) return jsonResponse({ error: "Photon unavailable" }, 502);
+    const response = await originalFetch(url, {
+      headers: { Accept: "application/json", "User-Agent": "Vezemo/1.0 (https://vezemo.pl)" },
+      signal: init?.signal,
+    });
+    if (!response.ok) throw new Error(`Photon ${response.status}`);
 
-  const payload = await response.json();
-  const predictions = (payload.features || [])
-    .filter((feature) => String(feature.properties?.countrycode || "").toUpperCase() === "PL")
-    .map(rememberPlace)
-    .filter(Boolean)
-    .slice(0, 5);
+    const payload = await response.json();
+    predictions = (payload.features || [])
+      .filter((feature) => String(feature.properties?.countrycode || "").toUpperCase() === "PL")
+      .map(rememberPlace)
+      .filter(Boolean)
+      .slice(0, 5);
+  } catch (error) {
+    if (error?.name === "AbortError" || error?.name === "TimeoutError") throw error;
+    console.error("Photon address search failed:", error instanceof Error ? error.message : error);
+    return jsonResponse({ error: "Address provider unavailable" }, 502);
+  }
 
   return jsonResponse({ suggestions: predictions.map((placePrediction) => ({ placePrediction })) });
 }
@@ -181,9 +188,6 @@ globalThis.fetch = async (input, init = {}) => {
 
   return originalFetch(input, init);
 };
-
-// A non-secret marker enables the already-built address and route handlers.
-process.env.GOOGLE_MAPS_API_KEY = "free-openstreetmap-adapter";
 
 if (process.env.NODE_ENV !== "test") {
   await import("./server.mjs");
